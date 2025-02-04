@@ -2,7 +2,6 @@ from sklearn.model_selection import train_test_split
 import os, sys, time
 import numpy as np
 
-sys.path.append('C:\\Users\\psu61\\Documents\\Research\\top_audio_id\\audioId')
 
 from gtda.diagrams import PersistenceEntropy, Scaler, BettiCurve
 from gtda.homology import VietorisRipsPersistence
@@ -10,18 +9,14 @@ from gtda.homology import CubicalPersistence
 
 from gtda.metaestimators import CollectionTransformer
 from gtda.pipeline import Pipeline
-from gtda.time_series import TakensEmbedding, SingleTakensEmbedding, takens_embedding_optimal_parameters
+from gtda.time_series import TakensEmbedding
 
 
-from audioId.core import audio, spectrogram
-from audioId.pipeline import window_to_ph_vector
-from audioId.pipeline import fingerprint_audio, compare_audios, get_matrix_from_dict, get_windows_from_audio, get_windows_from_values
-from audioId.pipeline.match import get_delta_t_matching, get_error_from_matching
-from audioId.ph import filtrations, ph
-from audioId.ph.vectorization import BettiCurveExact
-from audioId.transformations.transformation import MyTransformer, NoiseTransformer
+from audioId.core import spectrogram
 
-from gtda.images import RadialFiltration, HeightFiltration
+
+# Replace this with Upper Star Filtration. 
+from gtda.images import RadialFiltration
 
 
 from sklearn.pipeline import make_union
@@ -142,55 +137,6 @@ class GWAnalyzer(object):
 
     #print(f"features.shape {features.shape}")
 
-    
-
-
-
-
-
-
-    def spectogram_features_hist(self, n_bins):
-        #extract features from the spectogram
-
-        if self.data is None:
-            raise Exception("Preprocessor not run yet")
-
-        start = time.time()
-
-
-        features = np.empty((0, 2*n_bins))
-
-        fingerprint_params = dict(
-            #spectrogramFct=spectrogram.MelSpectrogram,
-            spectrogramFct=spectrogram.STFT,
-            filter_fct=filtrations.intensity,
-            compute_ph=ph.compute_ph_super_level,
-            vect={0: BettiCurveExact(True), 1: BettiCurveExact(True)}
-        )
-
-
-        for wave in self.data:
-            windows = get_windows_from_values(wave, spectrogram.STFT)
-            bc = window_to_ph_vector(windows[(0.,1.0)], compute_ph=fingerprint_params["compute_ph"],
-                         filter_fct=fingerprint_params["filter_fct"],
-                         vect=fingerprint_params["vect"])
-
-
-
-            #data = bc[0][0]
-            #weights = bc[0][1]
-
-            hist1, _ = np.histogram(bc[0][0], bins=np.linspace(0,1,n_bins+1), weights=bc[0][1]);
-            hist2, _ = np.histogram(bc[1][0], bins=np.linspace(0,1,n_bins+1), weights=bc[1][1]);
-            features = np.vstack([features, np.concatenate([hist1, hist2])])
-            #bin_centers = (bins[:-1] + bins[1:]) / 2
-
-        end = time.time()
-        print(f'Spectogram Elapsed Time: {end - start}')
-
-
-
-        return features
 
     def point_cloud_features(self, embedding_time_delay, embedding_dimension, stride):
         # Start with Takens Embedding, 
