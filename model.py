@@ -83,7 +83,7 @@ class MLP(nn.Module):
             if normalize:
                 layers.append(nn.BatchNorm1d(num_features=out_feat))
             layers.append(nn.LeakyReLU())
-            layers.append(nn.Dropout(p=0.1, inplace = False))
+            layers.append(nn.Dropout(p=0.05, inplace = False))
             return layers
 
         self.fcblock = nn.Sequential(
