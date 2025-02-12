@@ -250,8 +250,8 @@ class GWAnalyzer(object):
 
         metrics = [         
             {"metric": metric}
-            #for metric in ["bottleneck", "wasserstein", "betti", "landscape", "silhouette","heat", "persistence_image"]
-            for metric in ["bottleneck", "wasserstein", "landscape", "persistence_image"]
+            for metric in ["bottleneck", "wasserstein", "betti", "landscape", "silhouette","heat", "persistence_image"]
+            #for metric in ["bottleneck", "wasserstein", "landscape", "persistence_image"]
         ]
         
         
@@ -324,7 +324,7 @@ class GWAnalyzer(object):
             #_features.append()
 
         if use_pointcloud == True:
-            _features = np.hstack((_features, self.point_cloud_features(1,5,1).reshape(self.data.shape[0], -1)))
+            _features = np.hstack((_features, self.point_cloud_features(1,10,1).reshape(self.data.shape[0], -1)))
 
 
         print(f"Shape of the final features is {_features.shape}")
