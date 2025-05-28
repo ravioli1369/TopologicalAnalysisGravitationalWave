@@ -1,11 +1,10 @@
-import os
 import time
 
 import gudhi
 import librosa
-
-# import pickle
 import numpy as np
+import torch
+import torchaudio
 from gtda.diagrams import Amplitude, NumberOfPoints, PersistenceEntropy, Scaler
 from gtda.homology import VietorisRipsPersistence
 from gtda.metaestimators import CollectionTransformer
@@ -43,26 +42,26 @@ class GWAnalyzer(object):
             Returns:
                 complex_: lower star filtration from image,
                 center_: array, with the lower-star filtration"""
-            v = np.repeat(
-                np.repeat(image, 2, axis=0), 2, axis=1
+            v = torch.repeat(
+                torch.repeat(image, 2, axis=0), 2, axis=1
             )  # expand, mimicking the datastructure
             dimensions = [
                 2 * (s - 1) + 1 for s in image.shape
             ]  # number of simplices to define in each dimension
-            horizontal_ = np.maximum(
+            horizontal_ = torch.maximum(
                 v[:, 0:-1], v[:, 1:]
             )  # filtration values for horizontal edges (and 0-cubes)
-            vertical_ = np.maximum(
+            vertical_ = torch.maximum(
                 v[0:-1, :], v[1:, :]
             )  # filtration values for horizontal edges ( and 1-cubes)
-            center_ = np.maximum(
-                np.maximum(horizontal_[0:-1, :], horizontal_[1:, :]),
-                np.maximum(vertical_[:, 0:-1], vertical_[:, 1:]),
+            center_ = torch.maximum(
+                torch.maximum(horizontal_[0:-1, :], horizontal_[1:, :]),
+                torch.maximum(vertical_[:, 0:-1], vertical_[:, 1:]),
             )  # filtration values for 2-cubes
             # rows with pair indices stay the same, f.ex. horizontal_[0] ==  np.maximum(horizontal_[0:-1,:], horizontal_[1:,:])[0]
             complex_ = gudhi.CubicalComplex(
                 dimensions=dimensions,
-                top_dimensional_cells=np.ravel(center_.transpose()),
+                top_dimensional_cells=torch.ravel(center_.transpose()),
             )  # transpose, due to the order of simplices
             return complex_, center_
 
@@ -89,7 +88,7 @@ class GWAnalyzer(object):
         ):
             # NOTE: `homology_dimensions` must be sorted in ascending order
             def replace_infinity_values(subdiagram):
-                np.nan_to_num(subdiagram, posinf=infinity_values, copy=False)
+                torch.nan_to_num(subdiagram, posinf=infinity_values, copy=False)
                 return subdiagram[subdiagram[:, 0] < subdiagram[:, 1]]
 
             # Replace np.inf with infinity_values and turn into list of dictionaries
@@ -102,7 +101,7 @@ class GWAnalyzer(object):
             Xt = [
                 {
                     dim: replace_infinity_values(
-                        np.array(
+                        torch.tensor(
                             [
                                 pers_info[1]
                                 for pers_info in diagram
@@ -185,22 +184,22 @@ class GWAnalyzer(object):
         )
 
         ##### Parallelize spectrogramming
-        specs = []
-        diagrams = []
-        for wave in self.data:
-            spec = librosa.stft(
-                y=wave, hop_length=5, n_fft=20, window="hann", center=True
-            )
-            amp = np.abs(spec)
-            specs.append(amp)
-            diagram = get_gudhi_persistence_diagram(librosa.amplitude_to_db(amp))
-            diagrams.append(diagram)
+        specs = torch.stft(
+            self.data,
+            n_fft=20,
+            hop_length=5,
+            window=torch.hann_window(20, device="cuda"),
+            center=True,
+            return_complex=True,
+        )
+        amp = torch.abs(specs)
+        db_scaled = torchaudio.functional.amplitude_to_DB(
+            amp, multiplier=20.0, amin=1e-10, db_multiplier=0.001
+        )
+        diagrams = get_gudhi_persistence_diagram(db_scaled)
 
         Xt = _postprocess_diagrams(diagrams)
-        self.spectrograms = np.array(specs)
-
-        # radial_filtration = RadialFiltration()
-        # cubical_persistence = CubicalPersistence(homology_dimensions=[0, 1, 2], n_jobs=-1)
+        self.spectrograms = specs
 
         feature_list = []
         for batch_idx in tqdm(gen_batches(Xt.shape[0], batch_size=3400)):
@@ -308,3 +307,15 @@ class GWAnalyzer(object):
 
         print(f"Shape of the final features is {_features.shape}")
         self.topological_features = _features
+
+
+if __name__ == "__main__":
+    batch_size: int = 384
+    ifos: int = 2
+    sample_rate: int = 2048
+    kernel_length = 1.5
+    X = torch.randn(batch_size, ifos, int(sample_rate * kernel_length), device="cuda")
+    detector1 = X[:, 0, :]
+    detector2 = X[:, 1, :]
+    gwana = GWAnalyzer(detector1)
+    gwana.obtain_topological_features(True, True)
